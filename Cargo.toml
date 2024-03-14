@@ -1,0 +1,30 @@
+[package]
+name = "actix-demo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.5.1"
+config = "0.14.0"
+serde = { version = "1.0.197", features = ["derive"] }
+tracing = "0.1.40"
+tracing-actix-web = { version = "0.7.9", features = ["opentelemetry_0_21"] }
+tracing-log = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
+tracing-opentelemetry = "0.22.0"
+opentelemetry = "0.21.0"
+opentelemetry-otlp = "0.14.0"
+opentelemetry_sdk = { version = "0.21.2", features = ["trace", "metrics", "rt-tokio"] }
+opentelemetry-semantic-conventions = "0.13.0"
+opentelemetry-prometheus = "0.14.1"
+actix-web-opentelemetry = { version = "0.16.0", features = ["metrics-prometheus"] }
+prometheus = "0.13.3"
+reqwest = "0.11.24"
+anyhow = "1.0.80"
+thiserror = "1.0.57"
+opentelemetry-http = { version = "0.10.0", features = ["reqwest"] }
+# openssl = { version = "0.10", features = ["vendored"] }
+opentelemetry-auto-span = "0.3"
+sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio"] }

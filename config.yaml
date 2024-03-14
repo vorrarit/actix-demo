@@ -1,0 +1,9 @@
+application:
+  name: actix-demo
+  port: 8080
+  otel:
+    enable: true
+    grpc_url: http://localhost:4317
+
+service_b:
+  url: http://host.docker.internal:8081/echo
