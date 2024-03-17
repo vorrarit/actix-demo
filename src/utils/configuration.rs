@@ -9,6 +9,12 @@ pub struct ServiceB {
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
+pub struct Database {
+    pub url: String
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused)]
 pub struct Otel {
     pub enable: bool,
     pub grpc_url: String
@@ -19,7 +25,8 @@ pub struct Otel {
 pub struct Application {
     pub name: String,
     pub port: u16,
-    pub otel: Otel
+    pub otel: Otel,
+    pub database: Database
 }
 
 #[derive(Debug, Deserialize, Clone)]

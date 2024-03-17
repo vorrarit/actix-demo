@@ -4,6 +4,8 @@ application:
   otel:
     enable: true
     grpc_url: http://localhost:4317
+  database:
+    url: todos.db
 
 service_b:
-  url: http://host.docker.internal:8081/echo
+  url: http://localhost:8081/echo

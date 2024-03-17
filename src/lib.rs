@@ -1,19 +1,18 @@
-use std::env;
+use std::{env, error::Error};
 
-use actix_web::{get, http::Error, post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder};
 use anyhow::anyhow;
 use opentelemetry::{global, trace::{FutureExt, TraceContextExt}, Context};
-use opentelemetry_auto_span::auto_span;
 use opentelemetry_http::HeaderInjector;
 use reqwest::header::HeaderMap;
-use serde::Deserialize;
-use sqlx::{pool, Sqlite, SqlitePool};
-use tracing::{debug, info, Span};
+use sqlx::SqlitePool;
+use tracing::{info, Span};
 use tracing_actix_web::RequestId;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utils::configuration::Configuration;
 
 mod utils;
+mod todo;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -94,31 +93,6 @@ pub async fn manual_hello() -> impl Responder {
     HttpResponse::Ok().body("Hey there!")
 }
 
-#[derive(Deserialize, Debug)]
-struct TodoItem {
-    description: String,
-    done: bool
-}
-
-#[tracing::instrument]
-#[post("/todo")]
-pub async fn todo_add(pool: web::Data<SqlitePool>, todo_item: web::Json<TodoItem>) -> Result<HttpResponse, actix_web::Error> {
-    let mut conn = pool.acquire()
-        .await
-        .map_err(|e| {
-            utils::error::Error(anyhow!(e))
-        })?;
-    
-    let result = sqlx::query("insert into todos (description) values (?1)")
-        .bind(todo_item.description.clone())
-        .execute(&mut *conn)
-        .await.map_err(|e| {
-            utils::error::Error(anyhow!(e))
-        })?;
-    
-    Ok(HttpResponse::Ok().body(result.last_insert_rowid().to_string()))
-}
-
 pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
     let conf = utils::configuration::Configuration::new()?;
     if conf.application.otel.enable {
@@ -129,7 +103,7 @@ pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
     }
     let (metrics_handler, meter_provider) = utils::prometheus::init()?;
     
-    let pool = SqlitePool::connect(&env::var("DATABASE_URL")?).await?;
+    let pool = SqlitePool::connect(conf.application.database.url.as_str()).await?;
     let port = conf.application.port;
     HttpServer::new(move || {
         App::new()
@@ -140,12 +114,12 @@ pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
             .service(hello)
             .service(echo)
             .service(serviceb)
-            .service(todo_add)
+            .service(todo::service::todo_add)
             .route("/hey", web::get().to(manual_hello))
             .route("/metrics", web::get().to(metrics_handler.clone()))
     })
     .bind(("0.0.0.0", port))?
-    .run().await.map_err(|err| format!("Error {}", err).into())
+    .run().await.map_err(|err| format!("Error {:?}", err).into())
 
     // global::shutdown_tracer_provider();
     // meter_provider.shutdown();
