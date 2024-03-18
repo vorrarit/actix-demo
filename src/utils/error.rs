@@ -1,27 +1,21 @@
-use actix_web::{HttpResponse, ResponseError, http::StatusCode};
+use std::error::Error;
 
-// #[derive(thiserror::Error, Debug)]
-#[derive(Debug)]
-pub struct Error(pub anyhow::Error);
+use actix_web::{http::{header::ContentType, StatusCode}, HttpResponse, ResponseError};
 
-impl ResponseError for Error {
+#[derive(thiserror::Error, Debug)]
+pub enum ActixDemoError {
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error)
+}
+
+impl ResponseError for ActixDemoError {
     fn status_code(&self) -> StatusCode {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<anyhow::Error> for Error {
-    fn from(err: anyhow::Error) -> Error {
-        Error(err)
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::json())
+            .body(format!(r#"{{ "message": "{}", "source": "{}" }}"#, self.to_string(), self.source().map_or(String::from(""), |s| s.to_string())))
     }
 }

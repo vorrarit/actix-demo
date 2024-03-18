@@ -1,8 +1,6 @@
-use std::{env, error::Error};
-
-use actix_web::{get, post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder};
-use anyhow::anyhow;
-use opentelemetry::{global, trace::{FutureExt, TraceContextExt}, Context};
+use actix_web::{error, get, post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder};
+use anyhow::Context;
+use opentelemetry::{global, trace::{FutureExt, TraceContextExt}};
 use opentelemetry_http::HeaderInjector;
 use reqwest::header::HeaderMap;
 use sqlx::SqlitePool;
@@ -38,7 +36,7 @@ async fn echo(req: HttpRequest, req_body: String) -> impl Responder {
 
 #[tracing::instrument]
 #[post("/serviceb")]
-async fn serviceb(conf: web::Data<Configuration>, req: HttpRequest, req_body: String) -> Result<HttpResponse, actix_web::Error> {
+async fn serviceb(conf: web::Data<Configuration>, req: HttpRequest, req_body: String) -> Result<HttpResponse, utils::error::ActixDemoError> {
     let req_id = req.extensions().get::<RequestId>().unwrap();
     let mut headers = HeaderMap::new();
 
@@ -60,9 +58,8 @@ async fn serviceb(conf: web::Data<Configuration>, req: HttpRequest, req_body: St
     let mut rqw_request = client.post(serviceb_url)
         .headers(headers)
         .body(req_body)
-        .build().map_err(|e| {
-            utils::error::Error(anyhow!(e))
-        })?;
+        .build()
+        .context("Error creating request for service B")?;
 
     let cx = Span::current().context();
     global::get_text_map_propagator(|propagator| {
@@ -70,9 +67,8 @@ async fn serviceb(conf: web::Data<Configuration>, req: HttpRequest, req_body: St
     });
 
    let rqw_response = client.execute(rqw_request)
-        .await.map_err(|e| {
-            utils::error::Error(anyhow!(e))
-        })?;
+        .await
+        .context("Error requesting service B")?;
     
 
     let mut res = HttpResponse::Ok();
@@ -80,9 +76,8 @@ async fn serviceb(conf: web::Data<Configuration>, req: HttpRequest, req_body: St
         res.append_header((header.0, header.1));
     }
     let body = rqw_response.text()
-        .await.map_err(|e| {
-            utils::error::Error(anyhow!(e))
-        })?;
+        .await
+        .context("Error extract body from service B response")?;
 
     Ok(res.body(body))
 }
@@ -106,9 +101,17 @@ pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
     let pool = SqlitePool::connect(conf.application.database.url.as_str()).await?;
     let port = conf.application.port;
     HttpServer::new(move || {
+        let json_config = web::JsonConfig::default()
+            .limit(4096)
+            .error_handler(|err, _req| {
+            // create custom error response
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
+            });
         App::new()
             .app_data(web::Data::new(conf.clone()))
             .app_data(web::Data::new(pool.clone()))
+            .app_data(json_config)
             .wrap(tracing_actix_web::TracingLogger::default())
             .wrap(actix_web_opentelemetry::RequestMetrics::default())
             .service(hello)

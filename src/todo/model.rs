@@ -3,5 +3,5 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct TodoItem {
     pub description: String,
-    pub done: bool
+    pub done: Option<bool>
 }
