@@ -3,6 +3,20 @@ use config::{Config, ConfigError, File};
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
+pub struct DemoConsumer {
+    pub enable: bool,
+    pub group_id: Option<String>,
+    pub topic: Option<String>
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused)]
+pub struct Kafka {
+    pub broker: String
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused)]
 pub struct ServiceB {
     pub url: String
 }
@@ -26,14 +40,16 @@ pub struct Application {
     pub name: String,
     pub port: u16,
     pub otel: Otel,
-    pub database: Database
+    pub database: Database,
+    pub kafka: Option<Kafka>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
 pub struct Configuration {
     pub application: Application,
-    pub service_b: ServiceB
+    pub service_b: ServiceB,
+    pub demo_consumer: Option<DemoConsumer>
 }
 
 impl Configuration {

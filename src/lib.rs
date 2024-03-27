@@ -2,6 +2,7 @@ use actix_web::{error, get, post, web, App, HttpMessage, HttpRequest, HttpRespon
 use anyhow::Context;
 use opentelemetry::{global, trace::{FutureExt, TraceContextExt}};
 use opentelemetry_http::HeaderInjector;
+use rdkafka::producer::FutureProducer;
 use reqwest::header::HeaderMap;
 use sqlx::SqlitePool;
 use tracing::{info, Span};
@@ -11,6 +12,7 @@ use utils::configuration::Configuration;
 
 mod utils;
 mod todo;
+mod producer;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -96,9 +98,30 @@ pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
     } else {
         utils::tracibility::init(None)?;
     }
-    let (metrics_handler, meter_provider) = utils::prometheus::init()?;
+    let (metrics_handler, _meter_provider) = utils::prometheus::init()?;
     
     let pool = SqlitePool::connect(conf.application.database.url.as_str()).await?;
+
+    let kafka_producer: Option<FutureProducer> = if let Some(kafka_config) = &conf.application.kafka {
+        Some(utils::kafka::init_kafka_producer(kafka_config.broker.as_str())?)
+    } else {
+        None
+    };
+
+    if let (Some(kafka_config), Some(demo_consumer)) = (&conf.application.kafka, &conf.demo_consumer) {
+        let kc = kafka_config.clone();
+        let dc = demo_consumer.clone();
+
+        if demo_consumer.enable {
+            tokio::spawn(async move {
+            producer::consumer::consume_and_print(
+                kc.broker.as_str(), 
+                dc.group_id.clone().unwrap().as_str(), 
+                dc.topic.clone().unwrap().as_str()).await;
+            });
+        }
+    }
+    
     let port = conf.application.port;
     HttpServer::new(move || {
         let json_config = web::JsonConfig::default()
@@ -108,11 +131,18 @@ pub async fn run()  -> Result<(), Box<dyn std::error::Error>> {
                 error::InternalError::from_response(err, HttpResponse::Conflict().finish())
                     .into()
             });
-        App::new()
+        let mut app = App::new()
             .app_data(web::Data::new(conf.clone()))
             .app_data(web::Data::new(pool.clone()))
-            .app_data(json_config)
-            .wrap(tracing_actix_web::TracingLogger::default())
+            .app_data(json_config);
+
+        if let Some(kafka_producer) = kafka_producer.clone() {
+            app = app
+                .app_data(web::Data::new(kafka_producer))
+                .service(producer::service::publish);
+        }
+
+        app.wrap(tracing_actix_web::TracingLogger::default())
             .wrap(actix_web_opentelemetry::RequestMetrics::default())
             .service(hello)
             .service(echo)

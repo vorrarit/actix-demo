@@ -4,7 +4,6 @@ use actix_web::{post, web, HttpResponse};
 use sqlx::SqlitePool;
 use crate::{todo::model::TodoItem, utils};
 use anyhow::Context;
-use serde::Serialize;
 
 #[tracing::instrument]
 #[post("/todo")]
@@ -19,14 +18,9 @@ pub async fn todo_add(pool: web::Data<SqlitePool>, todo_item: web::Json<TodoItem
         .await
         .context("Error inserting todo")?;
 
-    let mut res: ActixDemoResponse<HashMap<String, i64>> = ActixDemoResponse {
+    let mut res: utils::response::ActixDemoResponse<HashMap<String, i64>> = utils::response::ActixDemoResponse {
         data: HashMap::new()
     };
     res.data.insert("row_id".to_string(), result.last_insert_rowid());
     Ok(HttpResponse::Ok().json(res))
-}
-
-#[derive(Serialize, Debug)]
-struct ActixDemoResponse<T> {
-    data: T
 }

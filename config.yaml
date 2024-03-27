@@ -6,6 +6,12 @@ application:
     grpc_url: http://localhost:4317
   database:
     url: todos.db
+  kafka:
+    broker: localhost:9092
 
 service_b:
   url: http://localhost:8081/echo
+demo_consumer:
+  enable: true
+  group_id: my-group
+  topic: actixweb_demo
